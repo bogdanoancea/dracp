@@ -1,0 +1,40 @@
+# US effective federal funds rate (daily) (FRED DFF)
+name: fed_funds_daily
+seed: 42
+alpha: 0.10
+train_fraction: 0.50
+calibration_fraction: 0.25
+output_dir: results/fed_funds_daily
+data:
+  path: data/processed/fed_funds_daily.csv
+  date_column: date
+  target_column: fedfunds
+  feature_columns:
+    - fedfunds_lag_1
+    - fedfunds_lag_2
+    - fedfunds_lag_3
+    - fedfunds_lag_5
+    - fedfunds_lag_10
+    - fedfunds_lag_21
+    - fedfunds_rolling_mean_5
+    - fedfunds_rolling_std_5
+    - fedfunds_rolling_mean_21
+    - fedfunds_rolling_std_21
+    - season_sin
+    - season_cos
+model: {max_iter: 200, learning_rate: 0.05}
+dracp:
+  calibration_window: 500
+  target_window: 120
+  temporal_decay: 0.997
+  bandwidth: 2.0
+  adaptive_bandwidth: True
+  bandwidth_grid: [0.5, 1.0, 2.0, 4.0]
+  min_ess: 40
+  max_weight: 0.15
+  ratio_clip_min: 0.1
+  ratio_clip_max: 10.0
+  n_regimes: 3
+  regime_beta: 1.0
+  alpha_step: 0.01
+  fallback: global

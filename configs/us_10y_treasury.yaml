@@ -1,0 +1,42 @@
+# US 10Y Treasury yield (monthly)
+# Source: FRED series GS10  (https://fred.stlouisfed.org/series/GS10)
+name: us_10y_treasury
+seed: 42
+alpha: 0.10
+train_fraction: 0.50
+calibration_fraction: 0.25
+output_dir: results/us_10y_treasury
+data:
+  path: data/processed/us_10y_treasury.csv
+  date_column: date
+  target_column: t10y
+  feature_columns:
+    - t10y_lag_1
+    - t10y_lag_2
+    - t10y_lag_3
+    - t10y_lag_6
+    - t10y_lag_12
+    - t10y_rolling_mean_3
+    - t10y_rolling_std_3
+    - t10y_rolling_mean_12
+    - t10y_rolling_std_12
+    - season_sin
+    - season_cos
+model:
+  max_iter: 200
+  learning_rate: 0.05
+dracp:
+  calibration_window: 120
+  target_window: 24
+  temporal_decay: 0.985
+  bandwidth: 2.0
+  adaptive_bandwidth: True
+  bandwidth_grid: [0.5, 1.0, 2.0, 4.0]
+  min_ess: 20
+  max_weight: 0.3
+  ratio_clip_min: 0.1
+  ratio_clip_max: 10.0
+  n_regimes: 3
+  regime_beta: 1.0
+  alpha_step: 0.02
+  fallback: global

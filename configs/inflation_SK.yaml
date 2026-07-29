@@ -1,0 +1,37 @@
+# HICP annual inflation, Slovakia (Eurostat prc_hicp_manr, geo=SK)
+name: inflation_SK
+seed: 42
+alpha: 0.10
+train_fraction: 0.50
+calibration_fraction: 0.25
+output_dir: results/inflation_SK
+data:
+  path: data/processed/inflation_SK.csv
+  date_column: date
+  target_column: inflation
+  feature_columns:
+    - inflation_lag_1
+    - inflation_lag_2
+    - inflation_lag_3
+    - inflation_lag_6
+    - inflation_lag_12
+    - inflation_rolling_mean_3
+    - inflation_rolling_mean_12
+    - month_sin
+    - month_cos
+model: {max_iter: 150, learning_rate: 0.05}
+dracp:
+  calibration_window: 120
+  target_window: 24
+  temporal_decay: 0.985
+  bandwidth: 2.0
+  adaptive_bandwidth: true
+  bandwidth_grid: [0.5, 1.0, 2.0, 4.0]
+  min_ess: 20
+  max_weight: 0.30
+  ratio_clip_min: 0.1
+  ratio_clip_max: 10.0
+  n_regimes: 3
+  regime_beta: 1.0
+  alpha_step: 0.02
+  fallback: global

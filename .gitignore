@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Experiment inputs and outputs (regenerate with ./run.sh)
+data/
+results/
+logs/
+
+# LaTeX / OS
+*.aux
+*.log
+*.out
+.DS_Store

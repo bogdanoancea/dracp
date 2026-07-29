@@ -1,0 +1,8 @@
+include LICENSE
+include README.md
+include CITATION.cff
+prune data
+prune results
+prune logs
+global-exclude __pycache__/*
+global-exclude *.py[cod]

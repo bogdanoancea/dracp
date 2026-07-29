@@ -1,0 +1,43 @@
+# WTI crude oil price (daily)
+# Source: FRED series DCOILWTICO  (https://fred.stlouisfed.org/series/DCOILWTICO)
+name: wti_oil
+seed: 42
+alpha: 0.10
+train_fraction: 0.50
+calibration_fraction: 0.25
+output_dir: results/wti_oil
+data:
+  path: data/processed/wti_oil.csv
+  date_column: date
+  target_column: wti
+  feature_columns:
+    - wti_lag_1
+    - wti_lag_2
+    - wti_lag_3
+    - wti_lag_5
+    - wti_lag_10
+    - wti_lag_21
+    - wti_rolling_mean_5
+    - wti_rolling_std_5
+    - wti_rolling_mean_21
+    - wti_rolling_std_21
+    - season_sin
+    - season_cos
+model:
+  max_iter: 200
+  learning_rate: 0.05
+dracp:
+  calibration_window: 500
+  target_window: 120
+  temporal_decay: 0.997
+  bandwidth: 2.0
+  adaptive_bandwidth: True
+  bandwidth_grid: [0.5, 1.0, 2.0, 4.0]
+  min_ess: 40
+  max_weight: 0.15
+  ratio_clip_min: 0.1
+  ratio_clip_max: 10.0
+  n_regimes: 3
+  regime_beta: 1.0
+  alpha_step: 0.01
+  fallback: global

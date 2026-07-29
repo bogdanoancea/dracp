@@ -1,0 +1,41 @@
+name: electricity_demand
+seed: 42
+alpha: 0.10
+train_fraction: 0.50
+calibration_fraction: 0.25
+output_dir: results/electricity
+data:
+  path: data/processed/electricity.csv
+  date_column: date
+  target_column: load
+  feature_columns:
+    - load_lag_1
+    - load_lag_2
+    - load_lag_3
+    - load_lag_24
+    - load_lag_48
+    - load_lag_168
+    - load_roll_24
+    - load_roll_168
+    - hour_sin
+    - hour_cos
+    - dow_sin
+    - dow_cos
+model:
+  max_iter: 200
+  learning_rate: 0.05
+dracp:
+  calibration_window: 1000
+  target_window: 168
+  temporal_decay: 0.998
+  bandwidth: 2.0
+  adaptive_bandwidth: true
+  bandwidth_grid: [0.5, 1.0, 2.0, 4.0]
+  min_ess: 50
+  max_weight: 0.15
+  ratio_clip_min: 0.05
+  ratio_clip_max: 20.0
+  n_regimes: 4
+  regime_beta: 1.0
+  alpha_step: 0.005
+  fallback: global

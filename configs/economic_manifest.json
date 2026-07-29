@@ -1,0 +1,211 @@
+[
+  {
+    "name": "us_unemployment",
+    "fred_id": "UNRATE",
+    "target": "unemployment",
+    "transform": "level",
+    "freq": "M",
+    "lags": "1,2,3,6,12",
+    "roll": "3,12",
+    "max_rows": 0,
+    "desc": "US unemployment rate"
+  },
+  {
+    "name": "us_industrial_production",
+    "fred_id": "INDPRO",
+    "target": "indpro",
+    "transform": "log_diff",
+    "freq": "M",
+    "lags": "1,2,3,6,12",
+    "roll": "3,12",
+    "max_rows": 0,
+    "desc": "US industrial production growth"
+  },
+  {
+    "name": "us_cpi_inflation",
+    "fred_id": "CPIAUCSL",
+    "target": "cpi_inflation",
+    "transform": "log_diff",
+    "freq": "M",
+    "lags": "1,2,3,6,12",
+    "roll": "3,12",
+    "max_rows": 0,
+    "desc": "US CPI inflation"
+  },
+  {
+    "name": "us_retail_sales",
+    "fred_id": "RSAFS",
+    "target": "retail",
+    "transform": "log_diff",
+    "freq": "M",
+    "lags": "1,2,3,6,12",
+    "roll": "3,12",
+    "max_rows": 0,
+    "desc": "US retail sales growth"
+  },
+  {
+    "name": "us_nonfarm_payrolls",
+    "fred_id": "PAYEMS",
+    "target": "payrolls",
+    "transform": "log_diff",
+    "freq": "M",
+    "lags": "1,2,3,6,12",
+    "roll": "3,12",
+    "max_rows": 0,
+    "desc": "US nonfarm payroll growth"
+  },
+  {
+    "name": "us_10y_treasury",
+    "fred_id": "GS10",
+    "target": "t10y",
+    "transform": "diff",
+    "freq": "M",
+    "lags": "1,2,3,6,12",
+    "roll": "3,12",
+    "max_rows": 0,
+    "desc": "US 10Y Treasury yield (monthly)"
+  },
+  {
+    "name": "us_pce_inflation",
+    "fred_id": "PCEPI",
+    "target": "pce_inflation",
+    "transform": "log_diff",
+    "freq": "M",
+    "lags": "1,2,3,6,12",
+    "roll": "3,12",
+    "max_rows": 0,
+    "desc": "US PCE inflation"
+  },
+  {
+    "name": "us_housing_starts",
+    "fred_id": "HOUST",
+    "target": "housing",
+    "transform": "log_diff",
+    "freq": "M",
+    "lags": "1,2,3,6,12",
+    "roll": "3,12",
+    "max_rows": 0,
+    "desc": "US housing starts growth"
+  },
+  {
+    "name": "us_capacity_util",
+    "fred_id": "TCU",
+    "target": "caputil",
+    "transform": "diff",
+    "freq": "M",
+    "lags": "1,2,3,6,12",
+    "roll": "3,12",
+    "max_rows": 0,
+    "desc": "US capacity utilization change"
+  },
+  {
+    "name": "dgs10_daily",
+    "fred_id": "DGS10",
+    "target": "dgs10",
+    "transform": "diff",
+    "freq": "D",
+    "lags": "1,2,3,5,10,21",
+    "roll": "5,21",
+    "max_rows": 3500,
+    "desc": "US 10Y Treasury yield (daily)"
+  },
+  {
+    "name": "usd_eur",
+    "fred_id": "DEXUSEU",
+    "target": "usdeur",
+    "transform": "log_diff",
+    "freq": "D",
+    "lags": "1,2,3,5,10,21",
+    "roll": "5,21",
+    "max_rows": 3500,
+    "desc": "USD/EUR exchange rate (daily)"
+  },
+  {
+    "name": "wti_oil",
+    "fred_id": "DCOILWTICO",
+    "target": "wti",
+    "transform": "log_diff",
+    "freq": "D",
+    "lags": "1,2,3,5,10,21",
+    "roll": "5,21",
+    "max_rows": 3500,
+    "desc": "WTI crude oil price (daily)"
+  },
+  {
+    "name": "vix",
+    "fred_id": "VIXCLS",
+    "target": "vix",
+    "transform": "log_diff",
+    "freq": "D",
+    "lags": "1,2,3,5,10,21",
+    "roll": "5,21",
+    "max_rows": 3500,
+    "desc": "CBOE VIX (daily)"
+  },
+  {
+    "name": "term_spread",
+    "fred_id": "T10Y2Y",
+    "target": "spread",
+    "transform": "diff",
+    "freq": "D",
+    "lags": "1,2,3,5,10,21",
+    "roll": "5,21",
+    "max_rows": 3500,
+    "desc": "10Y-2Y Treasury spread (daily)"
+  },
+  {
+    "name": "us_m2",
+    "fred_id": "M2SL",
+    "target": "m2",
+    "transform": "log_diff",
+    "freq": "M",
+    "lags": "1,2,3,6,12",
+    "roll": "3,12",
+    "max_rows": 0,
+    "desc": "US M2 money stock growth"
+  },
+  {
+    "name": "us_ppi",
+    "fred_id": "PPIACO",
+    "target": "ppi",
+    "transform": "log_diff",
+    "freq": "M",
+    "lags": "1,2,3,6,12",
+    "roll": "3,12",
+    "max_rows": 0,
+    "desc": "US producer price inflation"
+  },
+  {
+    "name": "us_consumer_sentiment",
+    "fred_id": "UMCSENT",
+    "target": "sentiment",
+    "transform": "diff",
+    "freq": "M",
+    "lags": "1,2,3,6,12",
+    "roll": "3,12",
+    "max_rows": 0,
+    "desc": "US consumer sentiment change"
+  },
+  {
+    "name": "sp500_daily",
+    "fred_id": "SP500",
+    "target": "sp500",
+    "transform": "log_diff",
+    "freq": "D",
+    "lags": "1,2,3,5,10,21",
+    "roll": "5,21",
+    "max_rows": 3000,
+    "desc": "S&P 500 index (daily returns)"
+  },
+  {
+    "name": "fed_funds_daily",
+    "fred_id": "DFF",
+    "target": "fedfunds",
+    "transform": "diff",
+    "freq": "D",
+    "lags": "1,2,3,5,10,21",
+    "roll": "5,21",
+    "max_rows": 3000,
+    "desc": "US effective federal funds rate (daily)"
+  }
+]

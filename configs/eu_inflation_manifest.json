@@ -1,0 +1,137 @@
+[
+  {
+    "name": "inflation_AT",
+    "geo": "AT",
+    "country": "Austria"
+  },
+  {
+    "name": "inflation_BE",
+    "geo": "BE",
+    "country": "Belgium"
+  },
+  {
+    "name": "inflation_BG",
+    "geo": "BG",
+    "country": "Bulgaria"
+  },
+  {
+    "name": "inflation_CY",
+    "geo": "CY",
+    "country": "Cyprus"
+  },
+  {
+    "name": "inflation_CZ",
+    "geo": "CZ",
+    "country": "Czechia"
+  },
+  {
+    "name": "inflation_DE",
+    "geo": "DE",
+    "country": "Germany"
+  },
+  {
+    "name": "inflation_DK",
+    "geo": "DK",
+    "country": "Denmark"
+  },
+  {
+    "name": "inflation_EE",
+    "geo": "EE",
+    "country": "Estonia"
+  },
+  {
+    "name": "inflation_EL",
+    "geo": "EL",
+    "country": "Greece"
+  },
+  {
+    "name": "inflation_ES",
+    "geo": "ES",
+    "country": "Spain"
+  },
+  {
+    "name": "inflation_FI",
+    "geo": "FI",
+    "country": "Finland"
+  },
+  {
+    "name": "inflation_FR",
+    "geo": "FR",
+    "country": "France"
+  },
+  {
+    "name": "inflation_HR",
+    "geo": "HR",
+    "country": "Croatia"
+  },
+  {
+    "name": "inflation_HU",
+    "geo": "HU",
+    "country": "Hungary"
+  },
+  {
+    "name": "inflation_IE",
+    "geo": "IE",
+    "country": "Ireland"
+  },
+  {
+    "name": "inflation_IT",
+    "geo": "IT",
+    "country": "Italy"
+  },
+  {
+    "name": "inflation_LT",
+    "geo": "LT",
+    "country": "Lithuania"
+  },
+  {
+    "name": "inflation_LU",
+    "geo": "LU",
+    "country": "Luxembourg"
+  },
+  {
+    "name": "inflation_LV",
+    "geo": "LV",
+    "country": "Latvia"
+  },
+  {
+    "name": "inflation_MT",
+    "geo": "MT",
+    "country": "Malta"
+  },
+  {
+    "name": "inflation_NL",
+    "geo": "NL",
+    "country": "Netherlands"
+  },
+  {
+    "name": "inflation_PL",
+    "geo": "PL",
+    "country": "Poland"
+  },
+  {
+    "name": "inflation_PT",
+    "geo": "PT",
+    "country": "Portugal"
+  },
+  {
+    "name": "inflation_RO",
+    "geo": "RO",
+    "country": "Romania"
+  },
+  {
+    "name": "inflation_SE",
+    "geo": "SE",
+    "country": "Sweden"
+  },
+  {
+    "name": "inflation_SI",
+    "geo": "SI",
+    "country": "Slovenia"
+  },
+  {
+    "name": "inflation_SK",
+    "geo": "SK",
+    "country": "Slovakia"
+  }
+]

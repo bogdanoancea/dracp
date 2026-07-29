@@ -1,0 +1,42 @@
+seed: 42
+alpha: 0.10
+n_samples: 3000
+n_features: 5
+train_fraction: 0.45
+calibration_fraction: 0.25
+output_dir: results/synthetic
+scenarios:
+  - stationary
+  - covariate_shift
+  - conditional_drift
+  - abrupt_drift
+  - gradual_drift
+  - regime_switching
+  - combined_shift
+model:
+  max_iter: 180
+  learning_rate: 0.05
+dracp:
+  calibration_window: 400
+  target_window: 80
+  temporal_decay: 0.995
+  bandwidth: 2.0
+  adaptive_bandwidth: true
+  bandwidth_grid: [0.5, 1.0, 2.0, 4.0, 8.0]
+  min_ess: 30
+  max_weight: 0.25
+  ratio_clip_min: 0.05
+  ratio_clip_max: 20.0
+  n_regimes: 3
+  regime_beta: 1.0
+  alpha_step: 0.01
+  fallback: global
+ablations:
+  - name: dracp_no_ratio
+    changes: {use_ratio: false}
+  - name: dracp_no_local
+    changes: {use_local: false}
+  - name: dracp_no_regime
+    changes: {use_regime: false}
+  - name: dracp_no_adaptive
+    changes: {use_adaptive_alpha: false}
