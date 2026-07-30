@@ -10,7 +10,7 @@ authors:
 repository-code: "https://github.com/bogdanoancea/dracp"
 license: MIT
 doi: 10.5281/zenodo.21675706
-version: 0.1.2
+version: 0.1.3
 identifiers:
   - type: doi
     value: 10.5281/zenodo.21675706
