@@ -227,7 +227,7 @@ class PaperOutputs:
             ax.text(avg[i]+0.04, pos, f"{avg[i]:.2f}", va="center", fontsize=8)
         ax.axvline(avg[order[0]]+cd, ls=":", color="grey")
         ax.set_xlabel(f"Average interval-score rank (1=best) over {self.stats['n_series']} real series")
-        fig.tight_layout(); fig.savefig(self.fig/"rank.pdf"); plt.close(fig)
+        fig.tight_layout(); fig.savefig(self.fig/"rank48.pdf"); plt.close(fig)
 
         fig, ax = plt.subplots(figsize=(5.2, 2.8))
         ax.hist(ranks[:, self.methods.index("dracp")],
@@ -298,6 +298,32 @@ class PaperOutputs:
         fig.suptitle("Prediction intervals through the 2021--23 inflation surge (shaded)", fontsize=10)
         fig.tight_layout(rect=[0, 0, 1, .96]); fig.savefig(self.fig/"case_inflation.pdf"); plt.close(fig)
 
+    def figure_case_width_alpha(self, country="DE"):
+        """Interval width and the self-tuned significance level around the break."""
+        def load(folder, m):
+            g = glob.glob(str(self.root/folder/f"*__{m}__predictions.csv"))
+            return pd.read_csv(g[0]) if g else None
+        d = load(f"inflation_{country}", "dracp"); b = load(f"inflation_{country}", "faci")
+        if d is None:
+            return
+        t = pd.to_datetime(d["date"]) if "date" in d else np.arange(len(d))
+        fig, ax = plt.subplots(1, 2, figsize=(9.0, 2.8))
+        ax[0].plot(t, d["upper"]-d["lower"], color="#d62728", label="DRACP")
+        if b is not None:
+            ax[0].plot(t, b["upper"]-b["lower"], color="#9467bd", lw=.9, label="FACI")
+        ax[0].set_ylabel("Interval width"); ax[0].legend(fontsize=7); ax[0].tick_params(labelsize=7)
+        ax[0].set_title(f"Width adapts at the break ({country})", fontsize=9)
+        if "alpha_t" in d:
+            ax[1].plot(t, d["alpha_t"], color="#2ca02c")
+            ax[1].axhline(self.alpha, ls="--", color="k", lw=.8)
+            ax[1].set_ylabel(r"self-tuned $\alpha_t$"); ax[1].tick_params(labelsize=7)
+            ax[1].set_title(f"Online significance level ({country})", fontsize=9)
+        if "date" in d:
+            for a_ in ax:
+                a_.axvspan(pd.Timestamp("2021-06-01"), pd.Timestamp("2023-06-01"),
+                           color="grey", alpha=.12)
+        fig.tight_layout(); fig.savefig(self.fig/"case_width_alpha.pdf"); plt.close(fig)
+
     # ------------------------------------------------------------------ run
     def run(self):
         self.table_rank(); self.table_groups(); self.table_ablation(); self.table_dm()
@@ -307,7 +333,8 @@ class PaperOutputs:
         self.table_synthetic("coverage", "syn_coverage")
         self.table_synthetic("mean_interval_score", "syn_score")
         self.table_synthetic("mean_width", "syn_width")
-        self.figure_rank(); self.figure_groups(); self.figure_eu_improvement(); self.figure_case_study()
+        self.figure_rank(); self.figure_groups(); self.figure_eu_improvement()
+        self.figure_case_study(); self.figure_case_width_alpha()
         (self.tab.parent/"key_statistics.json").write_text(json.dumps(self.stats, indent=2))
         print(f"tables  -> {self.tab}")
         print(f"figures -> {self.fig}")

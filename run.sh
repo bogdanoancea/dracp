@@ -179,6 +179,7 @@ if want report; then
   # regenerates every table and figure of the paper (uses dm_results.csv if present)
   section "REPORT: paper tables and figures"
   [[ -f results/mc_all_summary.csv ]] && "$PYBIN" -m reporting.paper_outputs --results-root results --out results/paper || echo "skip paper_outputs (run the montecarlo stage first)"
+  [[ -f results/mc_all_summary.csv ]] && "$PYBIN" -m reporting.diagnostic_figures --results-root results --out results/paper/figures || echo "skip diagnostic_figures (run the montecarlo stage first)"
 fi
 
 section "PIPELINE COMPLETE"

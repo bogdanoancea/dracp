@@ -2,7 +2,7 @@
 
 [![tests](https://github.com/bogdanoancea/dracp/actions/workflows/tests.yml/badge.svg)](https://github.com/bogdanoancea/dracp/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21675706.svg)](https://doi.org/10.5281/zenodo.21675706)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21675677.svg)](https://doi.org/10.5281/zenodo.21675677)
 [![PyPI](https://img.shields.io/pypi/v/dracp.svg)](https://pypi.org/project/dracp/)
 
 Distribution-free prediction intervals for forecasting when several distribution
@@ -136,9 +136,9 @@ If you use this software, please cite the archived release and the paper.
   title     = {dracp: Dynamic Regime-Aware Conformal Prediction},
   year      = {2026},
   publisher = {Zenodo},
-  version   = {v0.1.2},
-  doi       = {10.5281/zenodo.21675706},
-  url       = {https://doi.org/10.5281/zenodo.21675706}
+  version   = {v0.1.0},
+  doi       = {10.5281/zenodo.21675677},
+  url       = {https://doi.org/10.5281/zenodo.21675677}
 }
 ```
 
