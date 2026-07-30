@@ -22,7 +22,7 @@
 #   RUN_TESTS=1             run pytest during setup
 #   MAX_ELECTRICITY_ROWS=20000
 #   INFLATION_GEO=RO
-#   PYTHON_BIN=python3
+#   PYTHON_BIN=python3          (macOS has no bare 'python'; python3 is the default)
 #
 # Runtime note: 'montecarlo' is by far the heaviest stage (DRACP and dracp_asym
 # dominate, and the daily series add up). Start with e.g. SEEDS=5 to gauge
@@ -32,6 +32,8 @@ set -Eeuo pipefail
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; cd "$PROJECT_DIR"
 
 PYTHON_BIN="${PYTHON_BIN:-python3}"; VENV_DIR="${VENV_DIR:-.venv}"
+# every later call goes through the venv interpreter explicitly
+PYBIN="$VENV_DIR/bin/python"
 SEEDS="${SEEDS:-20}"; SKIP_DOWNLOADS="${SKIP_DOWNLOADS:-0}"; NO_ONLINE="${NO_ONLINE:-0}"
 RUN_TESTS="${RUN_TESTS:-1}"; MAX_ELECTRICITY_ROWS="${MAX_ELECTRICITY_ROWS:-20000}"
 INFLATION_GEO="${INFLATION_GEO:-RO}"
@@ -45,65 +47,78 @@ mkdir -p data/raw/fred data/processed results logs
 TS="$(date +%Y%m%d_%H%M%S)"; LOG="logs/run_${TS}.log"
 exec > >(tee -a "$LOG") 2>&1
 section(){ echo; echo "============================================================"; echo "# $1"; echo "============================================================"; }
-trap 'echo; echo "ERROR: stage failed (exit $?). See $LOG"; exit 1' ERR
+trap 'rc=$?; echo; echo "ERROR: stage failed (exit $rc). See $LOG"; exit "$rc"' ERR
 
 # ---------------------------------------------------------------- setup
 if want setup; then
   section "SETUP: environment + install"
-  [[ -d "$VENV_DIR" ]] || "$PYTHON_BIN" -m venv "$VENV_DIR"
+  # A directory alone is not proof of a working venv: a previous interrupted
+  # "python3 -m venv" can leave .venv/ without an interpreter. Validate, and
+  # rebuild if broken.
+  if [[ ! -x "$VENV_DIR/bin/python" ]]; then
+    if [[ -d "$VENV_DIR" ]]; then
+      echo "Existing '$VENV_DIR' has no usable interpreter; recreating."
+      rm -rf "$VENV_DIR"
+    fi
+    command -v "$PYTHON_BIN" >/dev/null 2>&1 || {
+      echo "ERROR: '$PYTHON_BIN' not found. On macOS use python3 (or set PYTHON_BIN)."; exit 1; }
+    "$PYTHON_BIN" -m venv "$VENV_DIR"
+  fi
   # shellcheck disable=SC1091
   source "$VENV_DIR/bin/activate"
-  python -m pip install --quiet --upgrade pip setuptools wheel
-  python -m pip install --quiet -e .
-  python -m pip install --quiet pytest
-  python --version
-  [[ "$RUN_TESTS" == "1" ]] && { section "SETUP: unit tests"; python -m pytest -q; }
+  "$PYBIN" -m pip install --quiet --upgrade pip setuptools wheel
+  # the experiment pipeline needs the optional extras (PyYAML, matplotlib, requests)
+  "$PYBIN" -m pip install --quiet -e ".[experiments]"
+  "$PYBIN" -m pip install --quiet pytest
+  "$PYBIN" --version
+  [[ "$RUN_TESTS" == "1" ]] && { section "SETUP: unit tests"; "$PYBIN" -m pytest -q; }
 else
   # still need the venv active for later stages
   # shellcheck disable=SC1091
-  [[ -d "$VENV_DIR" ]] && source "$VENV_DIR/bin/activate" || { echo "No venv; run the 'setup' stage first."; exit 1; }
+  [[ -x "$VENV_DIR/bin/python" ]] || { echo "No usable venv at '$VENV_DIR'; run the 'setup' stage first (./run.sh setup ...)."; exit 1; }
+  source "$VENV_DIR/bin/activate"
 fi
 
 # ---------------------------------------------------------------- synthetic
 if want synthetic; then
   section "SYNTHETIC: full benchmark"
-  python -m experiments.run_synthetic --config configs/synthetic.yaml
-  python -m reporting.create_tables --results-dir results/synthetic
+  "$PYBIN" -m experiments.run_synthetic --config configs/synthetic.yaml
+  "$PYBIN" -m reporting.create_tables --results-dir results/synthetic
 fi
 
 # ---------------------------------------------------------------- real (single run)
 if want real; then
   section "REAL: inflation (Eurostat)"
   if [[ "$SKIP_DOWNLOADS" != "1" || ! -f data/raw/inflation_${INFLATION_GEO}.csv ]]; then
-    python -m real_data.download_inflation --output "data/raw/inflation_${INFLATION_GEO}.csv" --geo "$INFLATION_GEO" || true
+    "$PYBIN" -m real_data.download_inflation --output "data/raw/inflation_${INFLATION_GEO}.csv" --geo "$INFLATION_GEO" || true
   fi
   if [[ -f data/raw/inflation_${INFLATION_GEO}.csv ]]; then
-    python -m real_data.prepare_inflation --input "data/raw/inflation_${INFLATION_GEO}.csv" \
+    "$PYBIN" -m real_data.prepare_inflation --input "data/raw/inflation_${INFLATION_GEO}.csv" \
       --output data/processed/inflation.csv --date-column date --target-column inflation
-    python -m experiments.run_real --config configs/inflation.yaml
-    python -m reporting.create_tables --results-dir results/inflation
+    "$PYBIN" -m experiments.run_real --config configs/inflation.yaml
+    "$PYBIN" -m reporting.create_tables --results-dir results/inflation
   fi
 
   section "REAL: EU-27 inflation (Eurostat)"
   if [[ "$SKIP_DOWNLOADS" != "1" ]]; then
-    python -m real_data.download_inflation_eu --output-dir data/raw || true
+    "$PYBIN" -m real_data.download_inflation_eu --output-dir data/raw || true
   fi
-  python -m real_data.prepare_and_run_eu || true
+  "$PYBIN" -m real_data.prepare_and_run_eu || true
 
   section "REAL: electricity (UCI)"
   if [[ "$SKIP_DOWNLOADS" != "1" ]]; then
-    python -m real_data.download_electricity --output-dir data/raw/electricity || true
+    "$PYBIN" -m real_data.download_electricity --output-dir data/raw/electricity || true
   fi
   ESRC="$(find data/raw/electricity -type f -name 'LD2011_2014.txt' 2>/dev/null | head -n1 || true)"
   if [[ -n "$ESRC" ]]; then
-    python -m real_data.prepare_electricity --input "$ESRC" --output data/processed/electricity.csv \
+    "$PYBIN" -m real_data.prepare_electricity --input "$ESRC" --output data/processed/electricity.csv \
       --aggregate mean --max-rows "$MAX_ELECTRICITY_ROWS"
-    python -m experiments.run_real --config configs/electricity.yaml
-    python -m reporting.create_tables --results-dir results/electricity
+    "$PYBIN" -m experiments.run_real --config configs/electricity.yaml
+    "$PYBIN" -m reporting.create_tables --results-dir results/electricity
   fi
 
   section "REAL: FRED economic/financial series"
-  SKIP_DOWNLOADS="$SKIP_DOWNLOADS" python - <<'PY'
+  SKIP_DOWNLOADS="$SKIP_DOWNLOADS" "$PYBIN" - <<'PY'
 import json, os, subprocess, sys, pathlib
 man=json.load(open("configs/economic_manifest.json"))
 skip=os.environ.get("SKIP_DOWNLOADS","0")=="1"
@@ -121,7 +136,7 @@ print("All FRED datasets done.")
 PY
 
   section "REAL: combine single-run metrics"
-  python - <<'PY'
+  "$PYBIN" - <<'PY'
 import glob, pandas as pd, pathlib
 rows=[]
 for p in sorted(glob.glob("results/*/metrics.csv")):
@@ -138,32 +153,32 @@ fi
 if want sweeps; then
   section "SWEEPS: DRACP hyperparameter sensitivity"
   rm -f results/sweeps_all.csv
-  python -m experiments.sensitivity
+  "$PYBIN" -m experiments.sensitivity
 fi
 
 # ---------------------------------------------------------------- montecarlo
 if want montecarlo; then
   section "MONTE-CARLO: synthetic (${SEEDS} seeds)"
-  python -m experiments.montecarlo --config configs/synthetic.yaml --kind synthetic --seeds "$SEEDS" $ONLINE_FLAG
+  "$PYBIN" -m experiments.montecarlo --config configs/synthetic.yaml --kind synthetic --seeds "$SEEDS" $ONLINE_FLAG
   section "MONTE-CARLO: real datasets (${SEEDS} seeds)"
-  REALCFGS=($(python -m experiments.list_real_configs))
+  REALCFGS=($("$PYBIN" -m experiments.list_real_configs))
   for cfg in "${REALCFGS[@]}"; do
     [[ -f "data/processed/${cfg}.csv" ]] || { echo "skip ${cfg} (no processed data)"; continue; }
-    python -m experiments.montecarlo --config "configs/${cfg}.yaml" --kind real --seeds "$SEEDS" $ONLINE_FLAG
+    "$PYBIN" -m experiments.montecarlo --config "configs/${cfg}.yaml" --kind real --seeds "$SEEDS" $ONLINE_FLAG
   done
 fi
 
 # ---------------------------------------------------------------- report
 if want report; then
   section "REPORT: Monte-Carlo aggregation + error-bar figures"
-  ls results/*/mc_summary.csv >/dev/null 2>&1 && python -m reporting.mc_report || echo "skip mc_report (no mc_summary.csv yet)"
+  ls results/*/mc_summary.csv >/dev/null 2>&1 && "$PYBIN" -m reporting.mc_report || echo "skip mc_report (no mc_summary.csv yet)"
 
   section "REPORT: Diebold-Mariano tests (per series)"
-  ls results/*/*__dracp__predictions.csv >/dev/null 2>&1 && python -m reporting.dm_test --results-root results --alpha 0.10 || echo "skip dm_test (needs the real stage)"
+  ls results/*/*__dracp__predictions.csv >/dev/null 2>&1 && "$PYBIN" -m reporting.dm_test --results-root results --alpha 0.10 || echo "skip dm_test (needs the real stage)"
 
   # regenerates every table and figure of the paper (uses dm_results.csv if present)
   section "REPORT: paper tables and figures"
-  [[ -f results/mc_all_summary.csv ]] && python -m reporting.paper_outputs --results-root results --out results/paper || echo "skip paper_outputs (run the montecarlo stage first)"
+  [[ -f results/mc_all_summary.csv ]] && "$PYBIN" -m reporting.paper_outputs --results-root results --out results/paper || echo "skip paper_outputs (run the montecarlo stage first)"
 fi
 
 section "PIPELINE COMPLETE"

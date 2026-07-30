@@ -201,16 +201,20 @@ class PaperOutputs:
                 for b in bases) + " \\\\"
         allrows = [r for r in (row(s) for s in self.real) if r]
         self._write("dm_full", "\n".join(allrows))
+        # restrict to the real series: synthetic aggregates and smoke tests are
+        # not part of the per-series real-data evidence
+        real_ds = {FOLDER.get(x, x) for x in self.real}
+        DMr = self.DM[self.DM.dataset.isin(real_ds)]
         counts = []
         for b in bases:
-            sub = self.DM[self.DM.base == b]
+            sub = DMr[DMr.base == b]
             w = int(((sub.p_value < 0.05) & (sub.dm_stat > 0)).sum())
             l = int(((sub.p_value < 0.05) & (sub.dm_stat < 0)).sum())
             counts.append(f"{NICE[b]} & {len(sub)} & {w} & {l} \\\\")
         self._write("dm_counts", "\n".join(counts))
-        self.stats["dm_better"] = int(((self.DM.p_value < 0.05) & (self.DM.dm_stat > 0)).sum())
-        self.stats["dm_worse"] = int(((self.DM.p_value < 0.05) & (self.DM.dm_stat < 0)).sum())
-        self.stats["dm_tests"] = int(len(self.DM))
+        self.stats["dm_better"] = int(((DMr.p_value < 0.05) & (DMr.dm_stat > 0)).sum())
+        self.stats["dm_worse"] = int(((DMr.p_value < 0.05) & (DMr.dm_stat < 0)).sum())
+        self.stats["dm_tests"] = int(len(DMr))
 
     # --------------------------------------------------------------- figures
     def figure_rank(self):

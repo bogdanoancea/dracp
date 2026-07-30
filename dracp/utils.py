@@ -3,13 +3,22 @@ import random
 from pathlib import Path
 import numpy as np
 import pandas as pd
-import yaml
 
 def set_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
 
 def load_yaml(path: str | Path) -> dict:
+    """Read a YAML config. PyYAML is an optional dependency (install the
+    ``experiments`` extra); it is imported lazily so the core package does not
+    require it."""
+    try:
+        import yaml
+    except ModuleNotFoundError as exc:  # pragma: no cover
+        raise ModuleNotFoundError(
+            "load_yaml requires PyYAML. Install the experiment extras with "
+            "'pip install \"dracp[experiments]\"'."
+        ) from exc
     with open(path, "r", encoding="utf-8") as fh:
         return yaml.safe_load(fh)
 

@@ -98,6 +98,12 @@ SEEDS=20 ./run.sh          # setup, synthetic, real, sweeps, montecarlo, report
 ./run.sh setup real        # or run individual stages
 ```
 
+The script creates its own virtual environment and calls that interpreter
+explicitly, so it does not require a `python` on your `PATH` (macOS ships only
+`python3`). Include the `setup` stage whenever the environment is missing; a
+`.venv` left behind by an interrupted install is detected and rebuilt. Override
+the interpreter with `PYTHON_BIN=python3.11 ./run.sh` if needed.
+
 The `report` stage writes the paper's tables and figures to `results/paper/`:
 
 ```bash
@@ -120,11 +126,28 @@ macroeconomic and financial series) and UCI (electricity demand).
 
 ## Citing
 
-If you use this software, please cite both the software (see
-[`CITATION.cff`](CITATION.cff), or the archived release DOI) and the paper:
+If you use this software, please cite the archived release and the paper.
+
+**Software** (DOI: [10.5281/zenodo.21675677](https://doi.org/10.5281/zenodo.21675677)):
+
+```bibtex
+@software{oancea_dracp_2026,
+  author    = {Oancea, Bogdan},
+  title     = {dracp: Dynamic Regime-Aware Conformal Prediction},
+  year      = {2026},
+  publisher = {Zenodo},
+  version   = {v0.1.2},
+  doi       = {10.5281/zenodo.21675706},
+  url       = {https://doi.org/10.5281/zenodo.21675706}
+}
+```
+
+**Paper:**
 
 > Oancea, B. (2026). *Dynamic Regime-Aware Conformal Prediction for Economic
 > Forecasting under Multiple Distribution Shifts.*
+
+GitHub also renders a "Cite this repository" button from [`CITATION.cff`](CITATION.cff).
 
 ## License
 
