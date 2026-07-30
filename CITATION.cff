@@ -14,7 +14,7 @@ identifiers:
   - type: doi
     value: 10.5281/zenodo.21675706
     description: Archived release of this version
-version: 0.1.0
+version: 0.1.1
 abstract: >-
   Distribution-free prediction intervals for forecasting under multiple
   simultaneous distribution shifts. DRACP composes density-ratio weighting,
