@@ -5,10 +5,15 @@ type: software
 authors:
   - family-names: Oancea
     given-names: Bogdan
-    affiliation: "University of Bucharest and National Institute of Statistics of Romania"
+    affiliation: "University of Bucharest, Romania"
     email: bogdan.oancea@gmail.com
 repository-code: "https://github.com/bogdanoancea/dracp"
 license: MIT
+doi: 10.5281/zenodo.21675706
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.21675706
+    description: Archived release of this version
 version: 0.1.0
 abstract: >-
   Distribution-free prediction intervals for forecasting under multiple

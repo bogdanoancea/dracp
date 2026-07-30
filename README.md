@@ -2,6 +2,8 @@
 
 [![tests](https://github.com/bogdanoancea/dracp/actions/workflows/tests.yml/badge.svg)](https://github.com/bogdanoancea/dracp/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21675706.svg)](https://doi.org/10.5281/zenodo.21675706)
+[![PyPI](https://img.shields.io/pypi/v/dracp.svg)](https://pypi.org/project/dracp/)
 
 Distribution-free prediction intervals for forecasting when several distribution
 shifts act **at the same time** — covariate shift, concept drift, local
