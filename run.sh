@@ -1,194 +1,55 @@
 #!/usr/bin/env bash
-# ============================================================================
-# DRACP -- single entry point for the entire experimental pipeline.
+# DRACP -- single entry point for every experiment.
 #
-#   chmod +x run.sh
-#   ./run.sh                 # run every stage, in order
-#   ./run.sh montecarlo report   # run only selected stages
+#   ./run.sh                  # tier 'main': what the paper needs
+#   ./run.sh --tier quick     # smoke test (minutes) -- run this first
+#   ./run.sh --tier full      # everything, including hyperparameter sweeps
+#   ./run.sh montecarlo report    # individual stages
 #
-# Stages (canonical order):
-#   setup       create venv, install package, (optionally) run unit tests
-#   synthetic   full synthetic benchmark  -> results/synthetic
-#   real        download+prepare+run electricity, inflation, and the FRED
-#               economic/financial series (single run)  -> results/<name>
-#   sweeps      DRACP hyperparameter sensitivity sweeps -> results/sweeps_all.csv
-#   montecarlo  20-seed Monte-Carlo with error bars for every dataset
-#   report      analysis tables + all figures + MC aggregation/plots
+# All results land in a single results/ directory.
 #
-# Environment overrides:
-#   SEEDS=20                Monte-Carlo seeds                (default 20)
-#   SKIP_DOWNLOADS=0        reuse already-downloaded raw data
-#   NO_ONLINE=0             drop FACI/SAOCP/Conformal-PID baselines
-#   RUN_TESTS=1             run pytest during setup
-#   MAX_ELECTRICITY_ROWS=20000
-#   INFLATION_GEO=RO
-#   PYTHON_BIN=python3          (macOS has no bare 'python'; python3 is the default)
-#
-# Runtime note: 'montecarlo' is by far the heaviest stage (DRACP and dracp_asym
-# dominate, and the daily series add up). Start with e.g. SEEDS=5 to gauge
-# wall-clock, then scale up. Every stage is safe to re-run.
-# ============================================================================
+# Environment variables (all optional):
+#   SEEDS=20            repeated fits per series
+#   HORIZON_SEEDS=10    seeds for the multi-horizon stage
+#   MODEL_SEEDS=10      seeds for the base-forecaster grid
+#   HORIZONS=1,3,6,12   horizons to evaluate
+#   SKIP_DOWNLOADS=1    reuse already-downloaded raw data
+#   PYTHON_BIN=python3  interpreter used to create the venv
+#   VENV_DIR=.venv      virtual-environment directory
 set -Eeuo pipefail
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; cd "$PROJECT_DIR"
 
-PYTHON_BIN="${PYTHON_BIN:-python3}"; VENV_DIR="${VENV_DIR:-.venv}"
-# every later call goes through the venv interpreter explicitly
-PYBIN="$VENV_DIR/bin/python"
-SEEDS="${SEEDS:-20}"; SKIP_DOWNLOADS="${SKIP_DOWNLOADS:-0}"; NO_ONLINE="${NO_ONLINE:-0}"
-RUN_TESTS="${RUN_TESTS:-1}"; MAX_ELECTRICITY_ROWS="${MAX_ELECTRICITY_ROWS:-20000}"
-INFLATION_GEO="${INFLATION_GEO:-RO}"
-ONLINE_FLAG=""; [[ "$NO_ONLINE" == "1" ]] && ONLINE_FLAG="--no-online"
+cd "$(dirname "$0")"
 
-ALL_STAGES=(setup synthetic real sweeps montecarlo report)
-if [[ $# -gt 0 ]]; then STAGES=("$@"); else STAGES=("${ALL_STAGES[@]}"); fi
-want() { for s in "${STAGES[@]}"; do [[ "$s" == "$1" ]] && return 0; done; return 1; }
-
-mkdir -p data/raw/fred data/processed results logs
-TS="$(date +%Y%m%d_%H%M%S)"; LOG="logs/run_${TS}.log"
-exec > >(tee -a "$LOG") 2>&1
-section(){ echo; echo "============================================================"; echo "# $1"; echo "============================================================"; }
-trap 'rc=$?; echo; echo "ERROR: stage failed (exit $rc). See $LOG"; exit "$rc"' ERR
-
-# ---------------------------------------------------------------- setup
-if want setup; then
-  section "SETUP: environment + install"
-  # A directory alone is not proof of a working venv: a previous interrupted
-  # "python3 -m venv" can leave .venv/ without an interpreter. Validate, and
-  # rebuild if broken.
-  if [[ ! -x "$VENV_DIR/bin/python" ]]; then
-    if [[ -d "$VENV_DIR" ]]; then
-      echo "Existing '$VENV_DIR' has no usable interpreter; recreating."
-      rm -rf "$VENV_DIR"
-    fi
-    command -v "$PYTHON_BIN" >/dev/null 2>&1 || {
-      echo "ERROR: '$PYTHON_BIN' not found. On macOS use python3 (or set PYTHON_BIN)."; exit 1; }
-    "$PYTHON_BIN" -m venv "$VENV_DIR"
-  fi
-  # shellcheck disable=SC1091
-  source "$VENV_DIR/bin/activate"
-  "$PYBIN" -m pip install --quiet --upgrade pip setuptools wheel
-  # the experiment pipeline needs the optional extras (PyYAML, matplotlib, requests)
-  "$PYBIN" -m pip install --quiet -e ".[experiments]"
-  "$PYBIN" -m pip install --quiet pytest
-  "$PYBIN" --version
-  [[ "$RUN_TESTS" == "1" ]] && { section "SETUP: unit tests"; "$PYBIN" -m pytest -q; }
-else
-  # still need the venv active for later stages
-  # shellcheck disable=SC1091
-  [[ -x "$VENV_DIR/bin/python" ]] || { echo "No usable venv at '$VENV_DIR'; run the 'setup' stage first (./run.sh setup ...)."; exit 1; }
-  source "$VENV_DIR/bin/activate"
+if [[ ! -f experiments/common.py ]]; then
+  echo "ERROR: run this from the repository root (experiments/common.py not found)." >&2
+  exit 1
 fi
 
-# ---------------------------------------------------------------- synthetic
-if want synthetic; then
-  section "SYNTHETIC: full benchmark"
-  "$PYBIN" -m experiments.run_synthetic --config configs/synthetic.yaml
-  "$PYBIN" -m reporting.create_tables --results-dir results/synthetic
-fi
-
-# ---------------------------------------------------------------- real (single run)
-if want real; then
-  section "REAL: inflation (Eurostat)"
-  if [[ "$SKIP_DOWNLOADS" != "1" || ! -f data/raw/inflation_${INFLATION_GEO}.csv ]]; then
-    "$PYBIN" -m real_data.download_inflation --output "data/raw/inflation_${INFLATION_GEO}.csv" --geo "$INFLATION_GEO" || true
-  fi
-  if [[ -f data/raw/inflation_${INFLATION_GEO}.csv ]]; then
-    "$PYBIN" -m real_data.prepare_inflation --input "data/raw/inflation_${INFLATION_GEO}.csv" \
-      --output data/processed/inflation.csv --date-column date --target-column inflation
-    "$PYBIN" -m experiments.run_real --config configs/inflation.yaml
-    "$PYBIN" -m reporting.create_tables --results-dir results/inflation
-  fi
-
-  section "REAL: EU-27 inflation (Eurostat)"
-  if [[ "$SKIP_DOWNLOADS" != "1" ]]; then
-    "$PYBIN" -m real_data.download_inflation_eu --output-dir data/raw || true
-  fi
-  "$PYBIN" -m real_data.prepare_and_run_eu || true
-
-  section "REAL: electricity (UCI)"
-  if [[ "$SKIP_DOWNLOADS" != "1" ]]; then
-    "$PYBIN" -m real_data.download_electricity --output-dir data/raw/electricity || true
-  fi
-  ESRC="$(find data/raw/electricity -type f -name 'LD2011_2014.txt' 2>/dev/null | head -n1 || true)"
-  if [[ -n "$ESRC" ]]; then
-    "$PYBIN" -m real_data.prepare_electricity --input "$ESRC" --output data/processed/electricity.csv \
-      --aggregate mean --max-rows "$MAX_ELECTRICITY_ROWS"
-    "$PYBIN" -m experiments.run_real --config configs/electricity.yaml
-    "$PYBIN" -m reporting.create_tables --results-dir results/electricity
-  fi
-
-  section "REAL: FRED economic/financial series"
-  SKIP_DOWNLOADS="$SKIP_DOWNLOADS" "$PYBIN" - <<'PY'
-import json, os, subprocess, sys, pathlib
-man=json.load(open("configs/economic_manifest.json"))
-skip=os.environ.get("SKIP_DOWNLOADS","0")=="1"
-for d in man:
-    raw=f"data/raw/fred/{d['fred_id']}.csv"; proc=f"data/processed/{d['name']}.csv"
-    if not (skip and pathlib.Path(raw).exists()):
-        subprocess.check_call([sys.executable,"-m","real_data.download_fred","--series",d["fred_id"],"--output",raw])
-    subprocess.check_call([sys.executable,"-m","real_data.prepare_economic",
-        "--input",raw,"--output",proc,"--target",d["target"],"--freq",d["freq"],
-        "--transform",d["transform"],"--lags",d["lags"],"--roll",d["roll"],
-        "--max-rows",str(d.get("max_rows",0))])
-    subprocess.check_call([sys.executable,"-m","experiments.run_real","--config",f"configs/{d['name']}.yaml"])
-    subprocess.check_call([sys.executable,"-m","reporting.create_tables","--results-dir",f"results/{d['name']}"])
-print("All FRED datasets done.")
-PY
-
-  section "REAL: combine single-run metrics"
-  "$PYBIN" - <<'PY'
-import glob, pandas as pd, pathlib
-rows=[]
-for p in sorted(glob.glob("results/*/metrics.csv")):
-    exp=pathlib.Path(p).parent.name
-    if exp=="synthetic_smoke": continue
-    d=pd.read_csv(p); d.insert(0,"experiment",exp); rows.append(d)
-if rows:
-    pd.concat(rows,ignore_index=True,sort=False).to_csv("results/all_experiments_metrics.csv",index=False)
-    print("Wrote results/all_experiments_metrics.csv")
-PY
-fi
-
-# ---------------------------------------------------------------- sweeps
-if want sweeps; then
-  section "SWEEPS: DRACP hyperparameter sensitivity"
-  rm -f results/sweeps_all.csv
-  "$PYBIN" -m experiments.sensitivity
-fi
-
-# ---------------------------------------------------------------- montecarlo
-if want montecarlo; then
-  section "MONTE-CARLO: synthetic (${SEEDS} seeds)"
-  "$PYBIN" -m experiments.montecarlo --config configs/synthetic.yaml --kind synthetic --seeds "$SEEDS" $ONLINE_FLAG
-  section "MONTE-CARLO: real datasets (${SEEDS} seeds)"
-  REALCFGS=($("$PYBIN" -m experiments.list_real_configs))
-  for cfg in "${REALCFGS[@]}"; do
-    [[ -f "data/processed/${cfg}.csv" ]] || { echo "skip ${cfg} (no processed data)"; continue; }
-    "$PYBIN" -m experiments.montecarlo --config "configs/${cfg}.yaml" --kind real --seeds "$SEEDS" $ONLINE_FLAG
+# --- locate a usable interpreter -------------------------------------------
+PYBIN="${PYTHON_BIN:-}"
+if [[ -z "$PYBIN" ]]; then
+  for c in python3 python; do
+    if command -v "$c" >/dev/null 2>&1; then PYBIN="$c"; break; fi
   done
 fi
-
-# ---------------------------------------------------------------- report
-if want report; then
-  section "REPORT: Monte-Carlo aggregation + error-bar figures"
-  ls results/*/mc_summary.csv >/dev/null 2>&1 && "$PYBIN" -m reporting.mc_report || echo "skip mc_report (no mc_summary.csv yet)"
-
-  section "REPORT: Diebold-Mariano tests (per series)"
-  ls results/*/*__dracp__predictions.csv >/dev/null 2>&1 && "$PYBIN" -m reporting.dm_test --results-root results --alpha 0.10 || echo "skip dm_test (needs the real stage)"
-
-  # regenerates every table and figure of the paper (uses dm_results.csv if present)
-  section "REPORT: paper tables and figures"
-  [[ -f results/mc_all_summary.csv ]] && "$PYBIN" -m reporting.paper_outputs --results-root results --out results/paper || echo "skip paper_outputs (run the montecarlo stage first)"
-  [[ -f results/mc_all_summary.csv ]] && "$PYBIN" -m reporting.diagnostic_figures --results-root results --out results/paper/figures || echo "skip diagnostic_figures (run the montecarlo stage first)"
+if [[ -z "$PYBIN" ]]; then
+  echo "ERROR: no python3/python on PATH. Set PYTHON_BIN=/path/to/python." >&2
+  exit 1
 fi
 
-section "PIPELINE COMPLETE"
-echo "Stages run: ${STAGES[*]}"
-echo "Key outputs:"
-echo "  results/all_experiments_metrics.csv   (single-run metrics)"
-echo "  results/mc_all_summary.csv            (Monte-Carlo means + CIs)"
-echo "  results/*/mc_block_bootstrap.csv      (bootstrap CIs, real datasets)"
-echo "  results/mc_figures/                   (error-bar figures)"
-echo "  results/paper/tables/, results/paper/figures/  (paper tables and figures)"
-echo "  results/dm_results.csv, results/sweeps_all.csv"
-echo "Log: $LOG"
+VENV_DIR="${VENV_DIR:-.venv}"
+VENV_PY="$VENV_DIR/bin/python"
+[[ -x "$VENV_PY" ]] || VENV_PY="$VENV_DIR/Scripts/python.exe"   # Git Bash on Windows
+
+# A venv copied between machines or folders keeps an absolute interpreter path
+# and silently stops working. Validate rather than trusting the directory.
+if [[ -d "$VENV_DIR" && ! -x "$VENV_PY" ]]; then
+  echo "Existing '$VENV_DIR' has no usable interpreter; recreating."
+  rm -rf "$VENV_DIR"
+fi
+
+trap 'rc=$?; echo; echo "run.sh failed (exit $rc) at line $LINENO." >&2; exit $rc' ERR
+
+export PYTHON_BIN="$PYBIN"
+echo "Interpreter: $("$PYBIN" --version 2>&1)  ($PYBIN)"
+exec "$PYBIN" run.py "$@"

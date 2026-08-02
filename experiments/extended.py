@@ -1,4 +1,7 @@
-"""Additional experiments requested in pre-submission review.
+"""Extended experiments: ablation, base models, horizons, sensitivity, runtime.
+
+All output goes to the single ``results/`` folder alongside the main pipeline;
+there is no separate reviewer/ subfolder.
 
 Sub-commands
 ------------
@@ -13,12 +16,12 @@ runtime       Runtime/memory benchmark with hardware metadata.
 
 Examples
 --------
-    python -m experiments.reviewer_experiments euro-area
-    python -m experiments.reviewer_experiments ablation --seeds 20
-    python -m experiments.reviewer_experiments models --seeds 10
-    python -m experiments.reviewer_experiments horizons --seeds 10
-    python -m experiments.reviewer_experiments sensitivity
-    python -m experiments.reviewer_experiments runtime
+    python -m experiments.extended euro-area
+    python -m experiments.extended ablation --seeds 20
+    python -m experiments.extended models --seeds 10
+    python -m experiments.extended horizons --seeds 10
+    python -m experiments.extended sensitivity
+    python -m experiments.extended runtime
 """
 from __future__ import annotations
 import argparse, glob, json, os, platform, subprocess, sys, time
@@ -31,7 +34,7 @@ from dracp.metrics import interval_metrics
 from dracp.utils import chronological_split, load_yaml, set_seed
 from experiments.common import sequential_evaluate, build_methods
 
-OUT = Path("results/reviewer"); OUT.mkdir(parents=True, exist_ok=True)
+OUT = Path(os.environ.get("RESULTS_ROOT", "results")); OUT.mkdir(parents=True, exist_ok=True)
 
 # --------------------------------------------------------------------- helpers
 def load_series(cfg):
@@ -183,7 +186,8 @@ def cmd_horizons(args):
             for seed in range(42, 42 + args.seeds):
                 set_seed(seed)
                 tr, cal, te = chronological_split(df, cfg["train_fraction"], cfg["calibration_fraction"])
-                for meth, obj in build_methods(cfg, seed, include_online=True).items():
+                for meth, obj in build_methods(cfg, seed, include_online=True,
+                                               horizon=h).items():
                     obj.fit(tr[feats].to_numpy(), tr[tgt].to_numpy(),
                             cal[feats].to_numpy(), cal[tgt].to_numpy())
                     pred = sequential_evaluate(obj, te[feats].to_numpy(), te[tgt].to_numpy())

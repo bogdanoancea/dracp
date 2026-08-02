@@ -4,16 +4,29 @@
 Works on Windows, macOS and Linux. Creates its own virtual environment, installs
 the package, and runs the requested stages.
 
-    python run.py                      # all stages, in order
+    python run.py                       # tier 'main' (what the paper needs)
+    python run.py --tier quick          # smoke test, minutes
+    python run.py --tier full           # everything, including sweeps
     python run.py montecarlo report     # only selected stages
+
+Tiers
+    quick   setup + synthetic + report                    (minutes)
+    main    + real panel, repeated fits, horizons, extended experiments
+    full    + hyperparameter sweeps and the 5-forecaster grid
 
 Stages
     setup       create venv, install package, run unit tests
     synthetic   full synthetic benchmark          -> results/synthetic
     real        download/prepare/run electricity, inflation, EU-27 and FRED series
     sweeps      hyperparameter sensitivity sweeps -> results/sweeps_all.csv
-    montecarlo  Monte-Carlo repetitions with error bars for every dataset
+    montecarlo  repeated fits with paired bootstrap intervals for every dataset
+    extended    real-panel ablation, base-forecaster grid, multi-horizon
+                (h = 1, 3, 6, 12 including the horizon-aware variants),
+                extra sensitivity, runtime benchmark
     report      aggregation, Diebold-Mariano tests, paper tables and figures
+
+All results are written to a single results/ folder; there is no separate
+reviewer/ subfolder.
 
 Environment variables
     SEEDS=20                 Monte-Carlo seeds
@@ -21,7 +34,9 @@ Environment variables
     NO_ONLINE=0              drop FACI/SAOCP/Conformal-PID baselines
     RUN_TESTS=1              run pytest during setup
     MAX_ELECTRICITY_ROWS=20000
-    INFLATION_GEO=RO
+    INFLATION_GEO=EA20
+    HORIZONS=1,3,6,12        horizons for the extended stage
+    MODEL_SEEDS=10           seeds for the base-forecaster grid
     PYTHON_BIN=python3       interpreter used to create the venv
 """
 from __future__ import annotations
@@ -30,7 +45,20 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-ALL_STAGES = ["setup", "synthetic", "real", "sweeps", "montecarlo", "report"]
+ALL_STAGES = ["setup", "synthetic", "real", "sweeps", "montecarlo",
+              "extended", "report"]
+
+# Tiers group the stages into three run sizes. The point is that you can
+# validate the pipeline in minutes before committing hours to it.
+TIERS = {
+    # smoke test: does everything import, run and write output?
+    "quick": ["setup", "synthetic", "report"],
+    # what the paper needs: the full 48-series panel with repeated fits,
+    # the multi-horizon evaluation, and all reporting
+    "main":  ["setup", "synthetic", "real", "montecarlo", "extended", "report"],
+    # everything, including hyperparameter sweeps and the 5-forecaster grid
+    "full":  ALL_STAGES,
+}
 
 def env(name, default):
     return os.environ.get(name, default)
@@ -40,7 +68,10 @@ SKIP_DL     = env("SKIP_DOWNLOADS", "0") == "1"
 NO_ONLINE   = env("NO_ONLINE", "0") == "1"
 RUN_TESTS   = env("RUN_TESTS", "1") == "1"
 MAX_ELEC    = env("MAX_ELECTRICITY_ROWS", "20000")
-INFL_GEO    = env("INFLATION_GEO", "RO")
+INFL_GEO    = env("INFLATION_GEO", "EA20")
+HORIZONS    = env("HORIZONS", "1,3,6,12")
+MC_SEEDS_H  = env("HORIZON_SEEDS", "10")
+MODEL_SEEDS = env("MODEL_SEEDS", "10")
 VENV        = ROOT / env("VENV_DIR", ".venv")
 ONLINE_FLAG = ["--no-online"] if NO_ONLINE else []
 
@@ -181,6 +212,27 @@ def stage_montecarlo(py):
         run([py, "-m", "experiments.montecarlo", "--config", f"configs/{name}.yaml",
              "--kind", "real", "--seeds", SEEDS] + ONLINE_FLAG, allow_fail=True)
 
+def stage_extended(py):
+    """Ablation, base-forecaster grid, horizons, sensitivity, runtime."""
+    have_real = list((ROOT/"results").glob("*/*__dracp__predictions.csv"))
+    if not have_real:
+        print("  skip extended (needs the real stage first)")
+        return
+    section("EXTENDED: euro-area HICP aggregate")
+    run([py, "-m", "experiments.extended", "euro-area"], allow_fail=True)
+    section("EXTENDED: component ablation on the real panel")
+    run([py, "-m", "experiments.extended", "ablation", "--seeds", SEEDS], allow_fail=True)
+    section(f"EXTENDED: multi-horizon evaluation (h = {HORIZONS})")
+    run([py, "-m", "experiments.extended", "horizons", "--seeds", MC_SEEDS_H,
+         "--horizons", HORIZONS], allow_fail=True)
+    section("EXTENDED: base-forecaster grid")
+    run([py, "-m", "experiments.extended", "models", "--seeds", MODEL_SEEDS], allow_fail=True)
+    section("EXTENDED: extra sensitivity")
+    run([py, "-m", "experiments.extended", "sensitivity"], allow_fail=True)
+    section("EXTENDED: runtime benchmark")
+    run([py, "-m", "experiments.extended", "runtime"], allow_fail=True)
+
+
 def stage_report(py):
     section("REPORT: Monte-Carlo aggregation + error-bar figures")
     if list((ROOT/"results").glob("*/mc_summary.csv")):
@@ -193,6 +245,9 @@ def stage_report(py):
              "--alpha", "0.10"], allow_fail=True)
     else:
         print("  skip dm_test (needs the real stage)")
+    section("REPORT: extended experiments summary")
+    run([py, "-m", "reporting.extended_report", "--results-root", "results"],
+        allow_fail=True)
     section("REPORT: paper tables and figures")
     if (ROOT/"results/mc_all_summary.csv").exists():
         run([py, "-m", "reporting.paper_outputs", "--results-root", "results",
@@ -203,11 +258,22 @@ def stage_report(py):
         print("  skip paper_outputs (run the montecarlo stage first)")
 
 STAGES = {"setup": stage_setup, "synthetic": stage_synthetic, "real": stage_real,
-          "sweeps": stage_sweeps, "montecarlo": stage_montecarlo, "report": stage_report}
+          "sweeps": stage_sweeps, "montecarlo": stage_montecarlo,
+          "extended": stage_extended, "report": stage_report}
 
 def main(argv):
     global LOG
-    stages = argv or ALL_STAGES
+    tier = None
+    argv = list(argv)
+    if argv and argv[0] in ("--tier", "-t"):
+        if len(argv) < 2:
+            sys.exit("--tier requires a value: " + ", ".join(TIERS))
+        tier, argv = argv[1], argv[2:]
+    elif argv and argv[0].startswith("--tier="):
+        tier, argv = argv[0].split("=", 1)[1], argv[1:]
+    if tier is not None and tier not in TIERS:
+        sys.exit(f"Unknown tier {tier!r}. Available: {', '.join(TIERS)}")
+    stages = argv or TIERS[tier or "main"]
     unknown = [s for s in stages if s not in STAGES]
     if unknown:
         sys.exit(f"Unknown stage(s): {', '.join(unknown)}\nAvailable: {', '.join(ALL_STAGES)}")
@@ -234,10 +300,14 @@ def main(argv):
         return exc.returncode
     section("PIPELINE COMPLETE")
     print(f"Stages run: {' '.join(s for s in ALL_STAGES if s in stages)}")
+    if tier: print(f"Tier: {tier}")
     print(f"Elapsed: {(time.time()-t0)/60:.1f} min")
     print("Key outputs:")
     for p in ("results/all_experiments_metrics.csv", "results/mc_all_summary.csv",
               "results/dm_results.csv", "results/sweeps_all.csv",
+              "results/horizons.csv", "results/real_ablation.csv",
+              "results/base_models.csv", "results/sensitivity_extra.csv",
+              "results/runtime.csv",
               "results/paper/tables/", "results/paper/figures/", "results/mc_figures/"):
         print(f"  {p}")
     print(f"Log: {logpath}")

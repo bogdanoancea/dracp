@@ -20,18 +20,34 @@ from .metrics import interval_score
 
 class AggregatedRegressor:
     def __init__(self, methods: dict, alpha: float = 0.1, eta: float | None = None,
-                 mode: str = "select"):
+                 mode: str = "select", warmup_frac: float = 0.0):
         self.methods = methods
         self.alpha = float(alpha)
         self.eta = eta
         self.mode = mode
+        # Fraction of the calibration block held out to warm-start the hedge
+        # weights. With a short test stream the hedge would otherwise spend a
+        # large part of it discovering which expert is good, and that learning
+        # cost is charged entirely to the reported score. Holding out a tail of
+        # calibration and replaying it before the test stream begins removes
+        # most of that cost. The held-out tail is *not* used to fit the experts,
+        # so the warm-up remains causal and out-of-sample.
+        self.warmup_frac = float(warmup_frac)
 
     def fit(self, x_train, y_train, x_cal, y_cal):
+        x_cal = np.asarray(x_cal, float)
+        y_cal = np.asarray(y_cal, float)
+        n_warm = int(self.warmup_frac * len(x_cal))
+        n_warm = max(0, min(n_warm, len(x_cal) - 10)) if len(x_cal) > 10 else 0
+        cut = len(x_cal) - n_warm
         for m in self.methods.values():
-            m.fit(x_train, y_train, x_cal, y_cal)
+            m.fit(x_train, y_train, x_cal[:cut], y_cal[:cut])
         self.names_ = list(self.methods)
         self.cum_ = np.zeros(len(self.names_))     # cumulative loss per expert
         self.w_ = np.ones(len(self.names_)) / len(self.names_)
+        for i in range(cut, len(x_cal)):           # causal warm-up
+            r = self.predict_one(x_cal[i])
+            self.update_one(x_cal[i], float(y_cal[i]), r)
         return self
 
     def predict_one(self, x):
@@ -88,3 +104,49 @@ def build_unified_dracp(cfg, seed, base_model, dcfg, mode="select"):
         "adaptive": AdaptiveConformalRegressor(alpha, win, dcfg.alpha_step, base_model),
     }
     return AggregatedRegressor(experts, alpha=alpha, mode=mode)
+
+
+def build_horizon_dracp(cfg, seed, base_model, dcfg, horizon: int, mode="select",
+                        warmup_frac: float = 0.0):
+    """Horizon-aware unified DRACP for multi-step forecasting.
+
+    Identical in structure to :func:`build_unified_dracp`, with two differences
+    that matter once the horizon exceeds one period.
+
+    First, the weighted core is constructed with ``horizon=h``, which switches
+    on target-aligned regime weighting, the softened temporal decay, the
+    inflated bandwidth grid and ESS floor, and the damped controller step (see
+    :class:`dracp.core.DRACPConfig`).
+
+    Second, the candidate set is deliberately kept small -- the weighted core
+    plus the strongest unweighted online baselines. The hedge's regret grows
+    like sqrt(T log J) in the number of experts J, and multi-step test streams
+    are short (a series of length T yields roughly T - h usable origins), so a
+    large candidate set would spend more in regret than it recovers in
+    selection. The purpose here is a guarantee rather than a gain: whatever the
+    weighting achieves at this horizon, the hedge's cumulative interval score
+    stays within a vanishing term of the best single candidate, so the method
+    cannot be badly beaten by a plain online controller at horizons where the
+    weights turn out not to help.
+
+    At ``horizon=1`` this reduces to :func:`build_unified_dracp` with a smaller
+    expert set; the one-step results in the paper use ``build_unified_dracp``
+    and are unaffected.
+    """
+    from .core import DRACPConfig, DRACPRegressor
+    from .online_baselines import FACIRegressor, ConformalPIDRegressor
+
+    alpha = cfg["alpha"]
+    win = dcfg.calibration_window
+    h = max(1, int(horizon))
+    core = DRACPRegressor(
+        DRACPConfig(alpha=alpha, random_state=seed,
+                    **{**cfg["dracp"], "use_faci_control": True,
+                       "horizon": h, "horizon_adapt": True}),
+        base_model=base_model)
+    experts = {
+        "weighted_core_h": core,
+        "faci": FACIRegressor(alpha, win, model=base_model),
+        "conformal_pid": ConformalPIDRegressor(alpha, win, model=base_model),
+    }
+    return AggregatedRegressor(experts, alpha=alpha, mode=mode, warmup_frac=warmup_frac)

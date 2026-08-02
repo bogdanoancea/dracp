@@ -14,12 +14,12 @@ exchangeability, which sequential economic data routinely violate. Existing
 adaptive extensions each correct a single departure. **DRACP** composes four
 mechanisms inside one weighted-conformal calibration step:
 
-- **density-ratio weighting** — corrects a shifted covariate distribution;
-- **localized kernel weighting** — restores approximate conditional validity,
+- **density-ratio weighting** - corrects a shifted covariate distribution;
+- **localized kernel weighting** - restores approximate conditional validity,
   with an automatic floor on the effective sample size;
-- **regime-aware weighting** — up-weights calibration points from the same
+- **regime-aware weighting** - up-weights calibration points from the same
   latent regime as the query;
-- **self-tuning online control** — adapts the significance level from realised
+- **self-tuning online control** - adapts the significance level from realised
   coverage, aggregating adaptive-conformal experts over several learning rates.
 
 It wraps **any** point-prediction model: conformal validity does not depend on
@@ -92,11 +92,34 @@ The repository ships the full experimental pipeline. Raw data and results are no
 version-controlled; a single command downloads everything and regenerates every
 table and figure:
 
+**macOS / Linux**
+
 ```bash
 chmod +x run.sh
-SEEDS=20 ./run.sh          # setup, synthetic, real, sweeps, montecarlo, report
-./run.sh setup real        # or run individual stages
+SEEDS=20 ./run.sh          # all stages
+./run.sh setup real        # or selected stages
 ```
+
+**Windows** (PowerShell or Command Prompt)
+
+```bat
+run.bat
+run.bat setup real
+```
+
+**Any platform**, directly:
+
+```bash
+python run.py                    # all stages
+python run.py montecarlo report  # selected stages
+```
+
+The pipeline is implemented once, in `run.py`; `run.sh` and `run.bat` are thin
+wrappers, so behaviour is identical everywhere. Stages are `setup`, `synthetic`,
+`real`, `sweeps`, `montecarlo`, `report`. Settings are environment variables
+(`SEEDS`, `SKIP_DOWNLOADS`, `NO_ONLINE`, `RUN_TESTS`, `MAX_ELECTRICITY_ROWS`,
+`INFLATION_GEO`, `PYTHON_BIN`); on Windows set them with
+`set SEEDS=20` (cmd) or `$env:SEEDS=20` (PowerShell).
 
 The script creates its own virtual environment and calls that interpreter
 explicitly, so it does not require a `python` on your `PATH` (macOS ships only
@@ -136,7 +159,7 @@ If you use this software, please cite the archived release and the paper.
   title     = {dracp: Dynamic Regime-Aware Conformal Prediction},
   year      = {2026},
   publisher = {Zenodo},
-  version   = {v0.1.3},
+  version   = {v0.1.0},
   doi       = {10.5281/zenodo.21675706},
   url       = {https://doi.org/10.5281/zenodo.21675706}
 }

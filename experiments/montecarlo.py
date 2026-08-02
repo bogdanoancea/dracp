@@ -102,36 +102,67 @@ def _aggregate(long_df, metrics):
     return pd.DataFrame(out)
 
 
-def _block_bootstrap_real(preds, alpha, block=50, B=1000, seed=0):
-    """Moving-block bootstrap CIs on coverage/width/score for fixed real data."""
-    rng = np.random.default_rng(seed)
-    out = []
-    for name, pred in preds.items():
-        v = pred.replace([np.inf, -np.inf], np.nan).dropna(subset=["y", "lower", "upper"])
-        y = v["y"].to_numpy(); lo = v["lower"].to_numpy(); up = v["upper"].to_numpy()
-        cov = ((y >= lo) & (y <= up)).astype(float)
-        wid = up - lo
-        sco = interval_score(y, lo, up, alpha)
-        n = len(y)
-        if n < block:
-            block = max(2, n // 5)
-        starts_max = n - block
-        cc, ww, ss = [], [], []
-        nblocks = int(np.ceil(n / block))
-        for _ in range(B):
-            idx = []
-            for _ in range(nblocks):
-                s0 = rng.integers(0, starts_max + 1)
-                idx.extend(range(s0, s0 + block))
-            idx = np.array(idx[:n])
-            cc.append(cov[idx].mean()); ww.append(wid[idx].mean()); ss.append(sco[idx].mean())
-        ci = lambda a: (float(np.percentile(a, 2.5)), float(np.percentile(a, 97.5)))
-        cl, ch = ci(cc); wl, wh = ci(ww); sl, sh = ci(ss)
-        out.append({"method": name,
-                    "coverage_ci_low": cl, "coverage_ci_high": ch,
-                    "mean_width_ci_low": wl, "mean_width_ci_high": wh,
-                    "mean_interval_score_ci_low": sl, "mean_interval_score_ci_high": sh})
-    return pd.DataFrame(out)
+def _block_bootstrap_real(all_preds, alpha, reference="dracp", B=2000, seed=0):
+    """Paired circular moving-block bootstrap over the repeated fits.
+
+    ``all_preds`` is a list (one entry per fit/seed) of ``{method: predictions}``
+    dicts. Every method is resampled with the *same* block indices within a
+    replicate, so the paired columns are valid confidence intervals for the
+    difference against ``reference``; the block length is chosen per series by
+    the Politis--White rule; blocks are circular; and the fit index is drawn at
+    each replicate so estimator variability and time-series variability are
+    combined rather than the latter being measured on one arbitrary fit.
+    """
+    from dracp.bootstrap import block_bootstrap
+
+    if not all_preds:
+        return None
+    methods = sorted(set().union(*[set(p) for p in all_preds]))
+    if not methods:
+        return None
+
+    def loss_matrix(name, key):
+        rows = []
+        for preds in all_preds:
+            if name not in preds:
+                continue
+            v = preds[name].replace([np.inf, -np.inf], np.nan).dropna(
+                subset=["y", "lower", "upper"])
+            y = v["y"].to_numpy(); lo = v["lower"].to_numpy(); up = v["upper"].to_numpy()
+            if key == "score":
+                rows.append(interval_score(y, lo, up, alpha))
+            elif key == "coverage":
+                rows.append(((y >= lo) & (y <= up)).astype(float))
+            else:
+                rows.append(up - lo)
+        if not rows:
+            return None
+        n = min(len(r) for r in rows)
+        return np.vstack([r[:n] for r in rows])
+
+    ref = reference if reference in methods else methods[0]
+    frames = []
+    for key, label in (("score", "mean_interval_score"),
+                       ("coverage", "coverage"), ("width", "mean_width")):
+        losses = {m: loss_matrix(m, key) for m in methods}
+        losses = {m: v for m, v in losses.items() if v is not None}
+        if len(losses) < 1:
+            continue
+        n = min(v.shape[1] for v in losses.values())
+        losses = {m: v[:, :n] for m, v in losses.items()}
+        res = block_bootstrap(losses, reference=ref, n_replicates=B, seed=seed)
+        df = res.to_frame().rename(columns={
+            "loss": label, "loss_lo": f"{label}_ci_low", "loss_hi": f"{label}_ci_high",
+            "d_loss": f"d_{label}", "d_loss_lo": f"d_{label}_ci_low",
+            "d_loss_hi": f"d_{label}_ci_high", "d_loss_p": f"d_{label}_p"})
+        df = df.rename(columns={"block_length": f"block_length_{key}"})
+        frames.append(df.set_index("method"))
+    if not frames:
+        return None
+    out = frames[0]
+    for f in frames[1:]:
+        out = out.join(f[[c for c in f.columns if c not in out.columns]])
+    return out.reset_index()
 
 
 # ----------------------------------------------------------------------------
@@ -158,12 +189,14 @@ def main(config_path, kind, seeds, seed0):
             df[date_col] = pd.to_datetime(df[date_col]); df = df.sort_values(date_col)
         target = cfg["data"]["target_column"]; features = cfg["data"]["feature_columns"]
         df = df.dropna(subset=features + [target]).reset_index(drop=True)
-        last_preds = None
+        every_preds = []
         for i, sd in enumerate(seed_list):
             print(f"[MC real] seed {sd} ({i+1}/{len(seed_list)})", flush=True)
             rows, preds = _one_seed_real(cfg, sd, df, features, target, date_col)
-            all_rows.extend(rows); last_preds = preds
-        boot = _block_bootstrap_real(last_preds, cfg["alpha"])
+            all_rows.extend(rows); every_preds.append(preds)
+        # all fits are pooled, so the interval reflects estimator variability
+        # across fits as well as dependence along the test stream
+        boot = _block_bootstrap_real(every_preds, cfg["alpha"])
 
     long_df = pd.DataFrame(all_rows)
     long_path = out_dir / "mc_runs.csv"

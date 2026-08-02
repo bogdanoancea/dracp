@@ -40,12 +40,21 @@ def write_metadata(path, config):
     Path(path).write_text(json.dumps(meta, indent=2, default=str), encoding="utf-8")
 
 
-def build_methods(cfg, seed, include_online=True, include_ablations=False):
+def build_methods(cfg, seed, include_online=True, include_ablations=False,
+                  horizon=1):
     """Construct competing methods. The headline ``dracp`` is the regime-aware,
     self-tuning, weighted conformal method (the paper's contribution). FACI, SAOCP,
     Conformal-PID and the classical CP methods are BASELINES. ``include_ablations``
     adds the weight-component ablations and the optional online selection hedge
-    ``dracp_select`` (a deployment robustness variant, not the headline method)."""
+    ``dracp_select`` (a deployment robustness variant, not the headline method).
+
+    ``horizon`` > 1 additionally registers the two multi-step variants:
+    ``dracp_h`` (horizon-aware weighting: target-aligned regimes, softened decay,
+    inflated bandwidth/ESS, damped controller) and ``dracp_hedge`` (the
+    no-regret hedge over the horizon-aware core, FACI and conformal PID). The
+    plain ``dracp`` entry is retained at every horizon so that the horizon-aware
+    variants can be compared against the horizon-unaware method directly. At
+    ``horizon=1`` nothing changes and the h=1 results reproduce exactly."""
     from sklearn.ensemble import HistGradientBoostingRegressor
     from dracp import (DRACPConfig, DRACPRegressor, SplitConformalRegressor,
                        RollingConformalRegressor, AdaptiveConformalRegressor,
@@ -82,4 +91,13 @@ def build_methods(cfg, seed, include_online=True, include_ablations=False):
             methods[variant["name"]] = DRACPRegressor(vcfg, base_model=base)
         # optional online selection hedge (deployment robustness variant)
         methods["dracp_select"] = build_unified_dracp(cfg, seed, base, dcfg, mode="select")
+    if int(horizon) > 1:
+        from dracp.aggregate import build_horizon_dracp
+        methods["dracp_h"] = DRACPRegressor(
+            DRACPConfig(alpha=alpha, random_state=seed,
+                        **{**cfg["dracp"], "use_faci_control": True,
+                           "horizon": int(horizon), "horizon_adapt": True}),
+            base_model=base)
+        methods["dracp_hedge"] = build_horizon_dracp(
+            cfg, seed, base, dcfg, int(horizon), mode="select")
     return methods
