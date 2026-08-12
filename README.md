@@ -14,12 +14,12 @@ exchangeability, which sequential economic data routinely violate. Existing
 adaptive extensions each correct a single departure. **DRACP** composes four
 mechanisms inside one weighted-conformal calibration step:
 
-- **density-ratio weighting** - corrects a shifted covariate distribution;
-- **localized kernel weighting** - restores approximate conditional validity,
+- **density-ratio weighting** — corrects a shifted covariate distribution;
+- **localized kernel weighting** — restores approximate conditional validity,
   with an automatic floor on the effective sample size;
-- **regime-aware weighting** - up-weights calibration points from the same
+- **regime-aware weighting** — up-weights calibration points from the same
   latent regime as the query;
-- **self-tuning online control** - adapts the significance level from realised
+- **self-tuning online control** — adapts the significance level from realised
   coverage, aggregating adaptive-conformal experts over several learning rates.
 
 It wraps **any** point-prediction model: conformal validity does not depend on
@@ -151,7 +151,7 @@ macroeconomic and financial series) and UCI (electricity demand).
 
 If you use this software, please cite the archived release and the paper.
 
-**Software** (DOI: [10.5281/zenodo.21675706](https://doi.org/10.5281/zenodo.21675706)):
+**Software** (DOI: [10.5281/zenodo.21675677](https://doi.org/10.5281/zenodo.21675677)):
 
 ```bibtex
 @software{oancea_dracp_2026,
@@ -160,7 +160,7 @@ If you use this software, please cite the archived release and the paper.
   year      = {2026},
   publisher = {Zenodo},
   version   = {v0.1.0},
-  doi       = {10.5281/zenodo.21675706},
+  doi       = {10.5281/zenodo.21675677},
   url       = {https://doi.org/10.5281/zenodo.21675706}
 }
 ```

@@ -54,7 +54,27 @@ def real_configs(limit=None):
     for extra in ("euro_area_inflation", "electricity"):
         if Path(f"configs/{extra}.yaml").exists():
             names.append(extra)
+    missing = [n for n in names if not Path(f"data/processed/{n}.csv").exists()]
     names = [n for n in names if Path(f"data/processed/{n}.csv").exists()]
+    if not names:
+        print("ERROR: no usable series found.", file=sys.stderr)
+        print(f"  working directory: {Path.cwd()}", file=sys.stderr)
+        print(f"  data/processed exists: {Path('data/processed').is_dir()}", file=sys.stderr)
+        if Path("data/processed").is_dir():
+            have = sorted(p.name for p in Path("data/processed").glob("*.csv"))
+            print(f"  csv files present: {len(have)}", file=sys.stderr)
+            if have:
+                print(f"    e.g. {have[:5]}", file=sys.stderr)
+        print(f"  names expected from manifests/configs: {len(missing)}", file=sys.stderr)
+        if missing:
+            print(f"    first few missing: {missing[:5]}", file=sys.stderr)
+        print("  Run this from the repository root, and make sure the 'real' stage has",
+              file=sys.stderr)
+        print("  populated data/processed/ (or copy it from your previous run).",
+              file=sys.stderr)
+    elif missing:
+        print(f"  note: {len(missing)} configured series have no processed data and are "
+              f"skipped ({missing[:3]}{'...' if len(missing) > 3 else ''})")
     return names[:limit] if limit else names
 
 # ------------------------------------------------------------------ euro-area
@@ -87,6 +107,14 @@ def cmd_ablation(args):
         "dracp_no_adaptive": {"use_adaptive_alpha": False},
         "dracp_no_temporal": {"use_temporal": False},
     }
+    # Conditional-scale ablation. DRACP normalises residuals by a fitted
+    # conditional scale while the classical baselines use raw absolute
+    # residuals, so part of the measured gain could come from the normalisation
+    # rather than from the weights or the controller. This variant replaces the
+    # fitted scale with a constant, isolating that contribution. It is handled
+    # separately below because it swaps the scale model rather than toggling a
+    # config flag.
+    from sklearn.dummy import DummyRegressor
     rows = []
     names = real_configs(args.limit)
     print(f"Real-panel ablation over {len(names)} series x {args.seeds} seeds")
@@ -100,16 +128,25 @@ def cmd_ablation(args):
             base = HistGradientBoostingRegressor(
                 max_iter=cfg["model"].get("max_iter", 200),
                 learning_rate=cfg["model"].get("learning_rate", 0.05), random_state=seed)
-            for vname, over in variants.items():
+            for vname, over in list(variants.items()) + [("dracp_no_scale", None)]:
                 c = DRACPConfig(alpha=cfg["alpha"], random_state=seed,
-                                **{**cfg["dracp"], "use_faci_control": True, **over})
-                m = DRACPRegressor(c, base_model=base)
+                                **{**cfg["dracp"], "use_faci_control": True,
+                                   **(over or {})})
+                if vname == "dracp_no_scale":
+                    m = DRACPRegressor(c, base_model=base,
+                                       scale_model=DummyRegressor(strategy="constant",
+                                                                  constant=1.0))
+                else:
+                    m = DRACPRegressor(c, base_model=base)
                 m.fit(tr[feats].to_numpy(), tr[tgt].to_numpy(),
                       cal[feats].to_numpy(), cal[tgt].to_numpy())
                 pred = sequential_evaluate(m, te[feats].to_numpy(), te[tgt].to_numpy())
                 met = interval_metrics(pred, cfg["alpha"])
                 met.update(series=name, seed=seed, variant=vname); rows.append(met)
         print(f"  {name} done", flush=True)
+    if not rows:
+        print(f"ERROR: no results produced; real_ablation.csv not written.", file=sys.stderr)
+        return
     pd.DataFrame(rows).to_csv(OUT/"real_ablation.csv", index=False)
     print(f"\nWrote {OUT/'real_ablation.csv'}")
 
@@ -165,6 +202,9 @@ def cmd_models(args):
                                method=meth, base_rmse=rmse)
                     rows.append(met)
         print(f"  {name} done", flush=True)
+    if not rows:
+        print(f"ERROR: no results produced; base_models.csv not written.", file=sys.stderr)
+        return
     pd.DataFrame(rows).to_csv(OUT/"base_models.csv", index=False)
     print(f"\nWrote {OUT/'base_models.csv'}")
 
@@ -190,10 +230,16 @@ def cmd_horizons(args):
                                                horizon=h).items():
                     obj.fit(tr[feats].to_numpy(), tr[tgt].to_numpy(),
                             cal[feats].to_numpy(), cal[tgt].to_numpy())
-                    pred = sequential_evaluate(obj, te[feats].to_numpy(), te[tgt].to_numpy())
+                    # horizon=h is essential: it delays feedback so the outcome
+                    # for origin i enters calibration only at row i + h - 1.
+                    pred = sequential_evaluate(obj, te[feats].to_numpy(),
+                                               te[tgt].to_numpy(), horizon=h)
                     met = interval_metrics(pred, cfg["alpha"])
                     met.update(series=name, seed=seed, horizon=h, method=meth); rows.append(met)
         print(f"  {name} done", flush=True)
+    if not rows:
+        print(f"ERROR: no results produced; horizons.csv not written.", file=sys.stderr)
+        return
     pd.DataFrame(rows).to_csv(OUT/"horizons.csv", index=False)
     print(f"\nWrote {OUT/'horizons.csv'}")
 

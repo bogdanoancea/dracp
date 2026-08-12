@@ -46,8 +46,21 @@ def pct_change(a: pd.Series, b: pd.Series) -> float:
     return float((100.0 * (a[m] - b[m]) / b[m]).mean())
 
 
+def label_column(d: pd.DataFrame) -> str:
+    """Name of the column holding the method/variant label.
+
+    The extended experiments are not uniform: the horizon and base-model runs
+    label their rows ``method``, while the ablation labels them ``variant``.
+    Rather than hard-code either, detect it.
+    """
+    for c in ("method", "variant", "model"):
+        if c in d.columns:
+            return c
+    raise KeyError(f"no label column in {sorted(d.columns)}")
+
+
 def _ranks(df: pd.DataFrame, value: str, within: list[str]) -> pd.DataFrame:
-    return (df.pivot_table(index=within, columns="method", values=value)
+    return (df.pivot_table(index=within, columns=label_column(df), values=value)
               .rank(axis=1))
 
 
@@ -57,16 +70,35 @@ def report_horizons(root: Path, out: Path) -> str:
     if not f.exists():
         return "  (no horizons.csv)"
     d = pd.read_csv(f)
-    piv = d.pivot_table(index=["series", "horizon"], columns="method",
+    piv = d.pivot_table(index=["series", "horizon"], columns=label_column(d),
                         values="mean_interval_score")
-    ranks = piv.rank(axis=1)
+
+    # Rank only over methods present at EVERY horizon. The horizon-specific
+    # variants exist only for h > 1, so ranking them alongside the rest would
+    # rank 7 methods at h = 1 and 9 at h > 1, making the columns incomparable
+    # across rows and inflating the apparent deterioration with horizon.
+    common = [c for c in piv.columns
+              if piv[c].groupby(level="horizon").apply(lambda x: x.notna().any()).all()]
+    order = [c for c in ["dracp", "faci", "conformal_pid", "adaptive_cp",
+                         "saocp", "rolling_cp", "split_cp"] if c in common]
+    ranks = piv[order].rank(axis=1)
     lines = []
-    order = [c for c in ["dracp", "dracp_h", "dracp_hedge", "faci", "conformal_pid",
-                         "adaptive_cp", "saocp", "rolling_cp", "split_cp"]
-             if c in piv.columns]
-    lines.append("Average interval-score rank by horizon (1 = best):")
+    lines.append(f"Average interval-score rank by horizon over the {len(order)} methods "
+                 "defined at every horizon (1 = best):")
     rk = ranks.groupby("horizon").mean()[order].round(2)
     lines.append(rk.to_string())
+    lines.append(f"  [check] ranks sum to {rk.sum(axis=1).round(2).unique()} "
+                 f"(should be {len(order)*(len(order)+1)/2:.1f} at every horizon)")
+
+    # Horizon-specific variants, ranked separately against the same reference set
+    extra = [c for c in ("dracp_h", "dracp_hedge") if c in piv.columns]
+    if extra:
+        sub = piv[piv.index.get_level_values("horizon") > 1]
+        rk2 = sub[order + extra].rank(axis=1).groupby("horizon").mean().round(2)
+        lines.append("")
+        lines.append(f"Ranks including the multi-step variants ({len(order)+len(extra)} "
+                     "methods, h > 1 only):")
+        lines.append(rk2.to_string())
 
     # the question the horizon experiment exists to answer
     lines.append("")
@@ -88,7 +120,7 @@ def report_horizons(root: Path, out: Path) -> str:
     lines.append(tab.to_string())
 
     (out / "horizons_rank.tex").write_text(
-        "\n".join(" & ".join([str(i)] + [f"{v:.2f}" for v in r]) + r" \\"
+        "\n".join(" & ".join([f"$h={i}$"] + [f"{v:.2f}" for v in r]) + r" \\"
                   for i, r in zip(rk.index, rk.to_numpy())), encoding="utf-8")
     tab.to_csv(out / "horizons_summary.csv")
     return "\n".join(lines)
@@ -100,7 +132,7 @@ def report_models(root: Path, out: Path) -> str:
     if not f.exists():
         return "  (no base_models.csv)"
     d = pd.read_csv(f)
-    piv = d.pivot_table(index=["series", "base_model"], columns="method",
+    piv = d.pivot_table(index=["series", "base_model"], columns=label_column(d),
                         values="mean_interval_score")
     rmse = d.groupby(["series", "base_model"]).base_rmse.first()
     piv = piv.join(rmse).reset_index()
@@ -139,9 +171,11 @@ def report_ablation(root: Path, out: Path) -> str:
     if not f.exists():
         return "  (no real_ablation.csv)"
     d = pd.read_csv(f)
-    piv = d.pivot_table(index="series", columns="method", values="mean_interval_score")
+    lab = label_column(d)
+    piv = d.pivot_table(index="series", columns=lab, values="mean_interval_score")
     if "dracp" not in piv:
-        return "  (real_ablation.csv has no 'dracp' column)"
+        return ("  (real_ablation.csv has no 'dracp' entry in column "
+                f"{lab!r}; found {sorted(piv.columns)})")
     rows = []
     for m in piv.columns:
         if m == "dracp":
@@ -190,11 +224,18 @@ def main(root="results", out=None):
     root = Path(root)
     out = Path(out) if out else root / "paper" / "tables"
     out.mkdir(parents=True, exist_ok=True)
+    def safe(fn, name):
+        """A malformed or unexpected file should degrade one section, not the run."""
+        try:
+            return fn(root, out)
+        except Exception as exc:                      # noqa: BLE001 - reporting must not crash
+            return f"  ({name} skipped: {type(exc).__name__}: {exc})"
+
     blocks = [
-        ("MULTI-HORIZON", report_horizons(root, out)),
-        ("BASE FORECASTERS", report_models(root, out)),
-        ("REAL-PANEL ABLATION", report_ablation(root, out)),
-        ("PAIRED BOOTSTRAP", report_bootstrap(root, out)),
+        ("MULTI-HORIZON", safe(report_horizons, "horizons")),
+        ("BASE FORECASTERS", safe(report_models, "base models")),
+        ("REAL-PANEL ABLATION", safe(report_ablation, "ablation")),
+        ("PAIRED BOOTSTRAP", safe(report_bootstrap, "bootstrap")),
     ]
     text = []
     for title, body in blocks:

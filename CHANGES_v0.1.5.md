@@ -1,6 +1,9 @@
-# dracp 0.1.4 — bootstrap correctness, consolidated pipeline, multi-step horizons
+# dracp 0.1.5 — bootstrap correctness, consolidated pipeline, multi-step horizons
 
-
+Three changes, in the order you asked for them. **Every one-step result from
+0.1.x reproduces exactly**; this was verified by a regression test that runs the
+old and new code on identical data and compares interval endpoints
+(`max |difference| = 0.0`).
 
 ---
 
@@ -10,22 +13,22 @@ The previous resampler had four defects. All are fixed, and each mattered.
 
 | | before | now |
 |---|---|---|
-| block length | fixed at 50 | Politis-White (2004) automatic rule, per series, capped at n/4 |
+| block length | fixed at 50 | Politis–White (2004) automatic rule, per series, capped at n/4 |
 | blocks | non-circular (ends under-sampled) | circular |
 | pairing | each method drew its own indices | one common index set per replicate |
 | repeated fits | only the last fit used | all fits pooled; fit index drawn per replicate |
 
-On an 84-observation monthly series a block of
+**Why the fixed block was wrong.** On an 84-observation monthly series a block of
 50 leaves 34 distinct starts, so replicates overlap almost completely and the
-interval comes out far too narrow. Measured on German HICP, the DRACP-FACI
+interval comes out far too narrow. Measured on German HICP, the DRACP–FACI
 differential CI was `[+0.73, +1.91]` at block 50 but `[-0.83, +2.76]` at block
-12 - the fixed choice manufactured significance that the data does not support.
+12 — the fixed choice manufactured significance that the data does not support.
 
-Unpaired marginal intervals cannot be compared for
+**Why pairing matters.** Unpaired marginal intervals cannot be compared for
 overlap to test a difference; doing so is conservative and improper. The new
 output includes explicit paired columns (`d_*`, `d_*_ci_low/high`, `d_*_p`) so
 differences are tested directly. In the smoke run the marginals spanned ~17
-units while the paired difference CI spanned ~10 - the pairing recovers real
+units while the paired difference CI spanned ~10 — the pairing recovers real
 precision.
 
 Output file `mc_block_bootstrap.csv` gains: `block_length_*`, `n_fits`,
@@ -35,8 +38,9 @@ Output file `mc_block_bootstrap.csv` gains: `block_length_*`, `n_fits`,
 
 ## 2. Consolidated experiments
 
-Everything writes to a single `results/`.
-Override with `RESULTS_ROOT` if you want it elsewhere.
+   Everything writes to a single `results/`.
+  Override with `RESULTS_ROOT` if you want it elsewhere.
+* `run_reviewer.sh` and `REVIEWER_EXPERIMENTS.md` deleted.
 * New **`reporting/extended_report.py`** summarises horizons, base forecasters
   (pooled *and by group*), the real-panel ablation, and the bootstrap into
   `results/paper/tables/extended_summary.txt`. It is run automatically by the
@@ -57,7 +61,8 @@ pooled number hides a very large HICP-vs-rest difference.
 ./run.sh montecarlo report   # individual stages still work
 ```
 
-`run.bat` mirrors this on Windows. `INFLATION_GEO` now defaults to `EA20`.
+`run.bat` mirrors this on Windows. `INFLATION_GEO` now defaults to `EA20`, not
+`RO` — that default was the source of the euro-area/Romania mix-up.
 
 ---
 
@@ -131,7 +136,7 @@ automatically when `h > 1`.
 
 ## Verification performed
 
-* `pytest` - 7 passed.
+* `pytest` — 7 passed.
 * h = 1 regression against 0.1.x on two independent datasets — interval endpoints
   identical to machine precision.
 * Bootstrap validated on AR(1) data with a known 0.3 shift: correct block

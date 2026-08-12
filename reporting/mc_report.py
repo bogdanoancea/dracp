@@ -11,6 +11,8 @@ import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
 import matplotlib.pyplot as plt
 
 ORDER = ["split_cp", "rolling_cp", "adaptive_cp", "faci", "saocp", "conformal_pid", "dracp"]

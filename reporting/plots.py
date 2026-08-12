@@ -1,7 +1,9 @@
 from __future__ import annotations
 from pathlib import Path
 import pandas as pd
-import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42.pyplot as plt
 
 def make_all_plots(result_dir, metrics_df: pd.DataFrame):
     result_dir = Path(result_dir)
