@@ -226,6 +226,13 @@ def cmd_horizons(args):
             for seed in range(42, 42 + args.seeds):
                 set_seed(seed)
                 tr, cal, te = chronological_split(df, cfg["train_fraction"], cfg["calibration_fraction"])
+                # The target was shifted by h-1 before splitting, so the last
+                # h-1 calibration rows carry outcomes realised after the first
+                # test origin. Fitting on them would leak the future into the
+                # calibration set, independently of the delayed feedback used
+                # within the test stream. Drop them.
+                if h > 1 and len(cal) > h:
+                    cal = cal.iloc[:-(h - 1)]
                 for meth, obj in build_methods(cfg, seed, include_online=True,
                                                horizon=h).items():
                     obj.fit(tr[feats].to_numpy(), tr[tgt].to_numpy(),

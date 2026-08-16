@@ -11,6 +11,7 @@ venv/
 data/
 results/
 logs/
+RELEASING.md
 
 # LaTeX / OS
 *.aux

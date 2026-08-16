@@ -128,17 +128,12 @@ def stage_synthetic(py):
     run([py, "-m", "reporting.create_tables", "--results-dir", "results/synthetic"])
 
 def stage_real(py):
-    section("REAL: inflation (Eurostat)")
-    raw = ROOT / f"data/raw/inflation_{INFL_GEO}.csv"
-    if not SKIP_DL or not raw.exists():
-        run([py, "-m", "real_data.download_inflation", "--output", str(raw),
-             "--geo", INFL_GEO], allow_fail=True)
-    if raw.exists():
-        run([py, "-m", "real_data.prepare_inflation", "--input", str(raw),
-             "--output", "data/processed/inflation.csv",
-             "--date-column", "date", "--target-column", "inflation"])
-        run([py, "-m", "experiments.run_real", "--config", "configs/inflation.yaml"])
-        run([py, "-m", "reporting.create_tables", "--results-dir", "results/inflation"])
+    # NOTE: the euro-area aggregate is prepared once, as `euro_area_inflation`,
+    # by the EU block below. Running it again here under the name `inflation`
+    # produced a duplicate 49th panel; that stage has been removed.
+    # The euro-area aggregate is prepared once by the EU block below, as
+    # `euro_area_inflation`. It used to be prepared a second time here under
+    # the name `inflation`, which produced a duplicate 49th panel.
 
     section("REAL: EU-27 inflation (Eurostat)")
     if not SKIP_DL:
