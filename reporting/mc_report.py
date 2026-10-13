@@ -52,7 +52,7 @@ def main(results_root="results"):
             ax.set_ylabel(metric.replace("_", " "))
             ax.set_title(f"{scen}: {metric.replace('_',' ')} (mean, 95% CI)")
             fig.tight_layout()
-            out = figdir / f"{scen}__{metric}.png"
+            out = figdir / f"{scen}__{metric}.pdf"
             fig.savefig(out, dpi=160); plt.close(fig)
     print(f"Wrote error-bar figures to {figdir}")
 
