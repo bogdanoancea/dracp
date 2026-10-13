@@ -151,7 +151,7 @@ macroeconomic and financial series) and UCI (electricity demand).
 
 If you use this software, please cite the archived release and the paper.
 
-**Software** (DOI: [10.5281/zenodo.21675677](https://doi.org/10.5281/zenodo.21675677)):
+**Software** (DOI: [10.5281/zenodo.21675706](https://doi.org/10.5281/zenodo.21675706)):
 
 ```bibtex
 @software{oancea_dracp_2026,
@@ -160,7 +160,7 @@ If you use this software, please cite the archived release and the paper.
   year      = {2026},
   publisher = {Zenodo},
   version   = {v0.1.0},
-  doi       = {10.5281/zenodo.21675677},
+  doi       = {10.5281/zenodo.21675706},
   url       = {https://doi.org/10.5281/zenodo.21675706}
 }
 ```
